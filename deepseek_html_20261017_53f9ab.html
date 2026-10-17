@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>我的记账本</title>
+    <style>
+        /* 全局变量和基础设置 */
+        :root {
+            --bg-color: #f3f1e9;
+            --card-bg: #f8f6f0;
+            --text-main: #333333;
+            --text-sub: #888888;
+            --primary-green: #697a3e;
+            --expense-red: #e8557a;
+            --income-green: #48b28b;
+            --border-color: #e5e2d9;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 模拟手机容器 */
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            height: 100%;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* 顶部导航栏 */
+        .top-nav {
+            display: flex;
+            justify-content: space-around;
+            padding: 15px 0;
+            background-color: var(--bg-color);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 16px;
+            color: var(--text-sub);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .top-nav-item {
+            padding-bottom: 5px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .top-nav-item.active {
+            color: var(--primary-green);
+            font-weight: bold;
+        }
+
+        .top-nav-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: -16px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background-color: var(--primary-green);
+            border-radius: 2px;
+        }
+
+        /* 内容区域 */
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            padding-bottom: 80px; /* 留出底部空间 */
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 卡片通用样式 */
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+
+        /* ----- 1. 主要 Tab 样式 ----- */
+        .balance-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .total-balance {
+            color: var(--primary-green);
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .btn-outline {
+            border: 1px solid var(--text-sub);
+            background: transparent;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--text-main);
+        }
+
+        /* 日历 */
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .calendar-day-name {
+            color: var(--text-sub);
+            margin-bottom: 10px;
+        }
+
+        .calendar-day {
+            height: 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            border-radius: 50%;
+        }
+
+        .calendar-day.today {
+            background-color: var(--primary-green);
+            color: white;
+        }
+
+        .calendar-day.has-data::after {
+            content: '';
+            width: 4px;
+            height: 4px;
+            background-color: #ff7f50;
+            border-radius: 50%;
+            position: absolute;
+            bottom: 2px;
+        }
+        .calendar-day.today.has-data::after {
+            background-color: white;
+        }
+
+        /* 每日摘要图表 */
+        .bar-chart-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            height: 120px;
+            margin-top: 15px;
+            padding-top: 20px;
+        }
+        .bar-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 12%;
+        }
+        .bar {
+            width: 100%;
+            background-color: var(--expense-red);
+            border-radius: 4px 4px 0 0;
+            transition: height 0.3s;
+        }
+        .bar-label {
+            font-size: 10px;
+            color: var(--text-sub);
+            margin-top: 5px;
+        }
+        .bar-value {
+            font-size: 10px;
+            margin-bottom: 2px;
+        }
+
+        /* ----- 2. 交易 Tab 样式 ----- */
+        .date-group {
+            margin-bottom: 15px;
+        }
+        .date-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-sub);
+            padding: 10px 5px;
+        }
+        .transaction-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .transaction-item:last-child {
+            border-bottom: none;
+        }
+        .item-left {
+            display: flex;
+            align-items: center;
+        }
+        .item-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #ff7f50;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 16px;
+        }
+        .item-info p:first-child {
+            font-size: 15px;
+            margin-bottom: 4px;
+        }
+        .item-info p:last-child {
+            font-size: 12px;
+            color: var(--text-sub);
+        }
+        .item-right {
+            text-align: right;
+        }
+        .item-amount {
+            font-size: 16px;
+            color: var(--expense-red);
+            font-weight: bold;
+        }
+        .item-balance {
+            font-size: 11px;
+            color: var(--text-sub);
+            margin-top: 4px;
+        }
+
+        /* ----- 3. 统计 Tab 样式 ----- */
+        .stats-chart {
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            height: 150px;
+            margin-top: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        .stat-bar-group {
+            display: flex;
+            gap: 4px;
+            align-items: flex-end;
+            height: 100%;
+        }
+        .stat-bar {
+            width: 20px;
+            border-radius: 4px 4px 0 0;
+        }
+        .stat-bar.expense { background-color: var(--expense-red); }
+        .stat-bar.income { background-color: var(--income-green); }
+        
+        .stats-legend {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+            font-size: 12px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .category-list {
+            margin-top: 15px;
+        }
+        .category-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .category-item:last-child {
+            border-bottom: none;
+        }
+
+        /* 悬浮添加按钮 */
+        .fab {
+            position: absolute;
+            bottom: 70px;
+            right: 20px;
+            width: 56px;
+            height: 56px;
+            background-color: var(--primary-green);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            box-shadow: 0 4px 12px rgba(105, 122, 62, 0.4);
+            cursor: pointer;
+            z-index: 20;
+        }
+
+        /* 底部导航 */
+        .bottom-nav {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0 20px 0;
+            background-color: var(--bg-color);
+            border-top: 1px solid var(--border-color);
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 12px;
+            color: var(--text-sub);
+            cursor: pointer;
+        }
+
+        .nav-item.active {
+            color: var(--primary-green);
+        }
+
+        .nav-icon {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+
+        /* 模态框 (添加交易) */
+        .modal {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 100;
+            align-items: flex-end;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: var(--bg-color);
+            width: 100%;
+            border-radius: 20px 20px 0 0;
+            padding: 20px;
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 5px;
+            color: var(--text-sub);
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+            font-size: 16px;
+            outline: none;
+        }
+        .modal-btns {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .btn-cancel {
+            background: #e0e0e0;
+            color: var(--text-main);
+        }
+        .btn-confirm {
+            background: var(--primary-green);
+            color: white;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <!-- 顶部导航 -->
+    <div class="top-nav">
+        <div class="top-nav-item active" onclick="switchTab('home')">主要</div>
+        <div class="top-nav-item" onclick="switchTab('transactions')">交易</div>
+        <div class="top-nav-item" onclick="switchTab('statistics')">统计</div>
+    </div>
+
+    <!-- 内容区域 -->
+    <div class="content-area">
+        
+        <!-- 1. 主要 (首页) -->
+        <div id="tab-home" class="tab-content active">
+            <div class="balance-header">
+                <button class="btn-outline">资产负债表</button>
+                <div class="total-balance">总和: ¥<span id="display-total-balance">2,567.50</span></div>
+            </div>
+
+            <!-- 日历卡片 -->
+            <div class="card">
+                <div class="calendar-header">
+                    <span>❮ 10月 2026 ❯</span>
+                </div>
+                <div class="calendar-grid">
+                    <div class="calendar-day-name">日</div>
+                    <div class="calendar-day-name">一</div>
+                    <div class="calendar-day-name">二</div>
+                    <div class="calendar-day-name">三</div>
+                    <div class="calendar-day-name">四</div>
+                    <div class="calendar-day-name">五</div>
+                    <div class="calendar-day-name">六</div>
+                    <!-- 动态生成日历数字 -->
+                    <div class="calendar-day" style="color:#ccc">27</div>
+                    <div class="calendar-day" style="color:#ccc">28</div>
+                    <div class="calendar-day" style="color:#ccc">29</div>
+                    <div class="calendar-day" style="color:#ccc">30</div>
+                    <div class="calendar-day has-data">1</div>
+                    <div class="calendar-day">2</div>
+                    <div class="calendar-day has-data">3</div>
+                    <div class="calendar-day has-data">4</div>
+                    <div class="calendar-day has-data">5</div>
+                    <div class="calendar-day has-data">6</div>
+                    <div class="calendar-day has-data">7</div>
+                    <div class="calendar-day has-data">8</div>
+                    <div class="calendar-day has-data">9</div>
+                    <div class="calendar-day has-data">10</div>
+                    <div class="calendar-day has-data">11</div>
+                    <div class="calendar-day">12</div>
+                    <div class="calendar-day has-data">13</div>
+                    <div class="calendar-day has-data">14</div>
+                    <div class="calendar-day has-data">15</div>
+                    <div class="calendar-day has-data">16</div>
+                    <div class="calendar-day today has-data">17</div>
+                    <div class="calendar-day">18</div>
+                    <div class="calendar-day">19</div>
+                    <!-- 省略部分日期以保持代码简洁 -->
+                </div>
+            </div>
+
+            <!-- 每日摘要卡片 -->
+            <div class="card">
+                <div class="calendar-header">
+                    <span>每日摘要</span>
+                </div>
+                <div class="bar-chart-container">
+                    <div class="bar-group">
+                        <div class="bar-value">¥42</div>
+                        <div class="bar" style="height: 40%;"></div>
+                        <div class="bar-label">周日</div>
+                    </div>
+                    <div class="bar-group">
+                        <div class="bar-value"></div>
+                        <div class="bar" style="height: 0%;"></div>
+                        <div class="bar-label">周一</div>
+                    </div>
+                    <div class="bar-group">
+                        <div class="bar-value">¥93</div>
+                        <div class="bar" style="height: 90%;"></div>
+                        <div class="bar-label">周二</div>
+                    </div>
+                    <div class="bar-group">
+                        <div class="bar-value">¥22</div>
+                        <div class="bar" style="height: 20%;"></div>
+                        <div class="bar-label">周三</div>
+                    </div>
+                    <div class="bar-group">
+                        <div class="bar-value">¥48</div>
+                        <div class="bar" style="height: 50%;"></div>
+                        <div class="bar-label">周四</div>
+                    </div>
+                    <div class="bar-group">
+                        <div class="bar-value">¥29</div>
+                        <div class="bar" style="height: 30%;"></div>
+                        <div class="bar-label">周五</div>
+                    </div>
+                    <div class="bar-group">
+                        <div class="bar-value">¥27</div>
+                        <div class="bar" style="height: 25%;"></div>
+                        <div class="bar-label">周六</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. 交易 (列表) -->
+        <div id="tab-transactions" class="tab-content">
+            <div id="transaction-list">
+                <!-- 交易数据由JS动态渲染 -->
+            </div>
+        </div>
+
+        <!-- 3. 统计 -->
+        <div id="tab-statistics" class="tab-content">
+            <div class="card">
+                <div class="calendar-header">
+                    <span>净收益 (近3月)</span>
+                </div>
+                <div class="stats-chart">
+                    <div class="stat-bar-group">
+                        <div class="stat-bar expense" style="height: 10%;" title="8月支出"></div>
+                    </div>
+                    <div class="stat-bar-group">
+                        <div class="stat-bar expense" style="height: 60%;" title="9月支出"></div>
+                        <div class="stat-bar income" style="height: 95%;" title="9月收入"></div>
+                    </div>
+                    <div class="stat-bar-group">
+                        <div class="stat-bar expense" style="height: 15%;" title="10月支出"></div>
+                    </div>
+                </div>
+                <div class="stats-legend">
+                    <div class="legend-item"><div class="dot" style="background:var(--income-green)"></div>收入</div>
+                    <div class="legend-item"><div class="dot" style="background:var(--expense-red)"></div>支出</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="calendar-header">
+                    <span>支出分类占比 (本月)</span>
+                </div>
+                <div class="category-list">
+                    <div class="category-item">
+                        <span>饮食</span>
+                        <span style="color: var(--expense-red)">¥442.50 (52%)</span>
+                    </div>
+                    <div class="category-item">
+                        <span>娱乐</span>
+                        <span style="color: var(--expense-red)">¥330.00 (39%)</span>
+                    </div>
+                    <div class="category-item">
+                        <span>房租&水电</span>
+                        <span style="color: var(--expense-red)">¥50.00 (6%)</span>
+                    </div>
+                    <div class="category-item">
+                        <span>订阅&服务</span>
+                        <span style="color: var(--expense-red)">¥10.00 (1%)</span>
+                    </div>
+                    <div class="category-item">
+                        <span>交通</span>
+                        <span style="color: var(--expense-red)">¥8.00 (2%)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 悬浮添加按钮 -->
+    <div class="fab" onclick="openModal()">+</div>
+
+    <!-- 底部导航 -->
+    <div class="bottom-nav">
+        <div class="nav-item active" onclick="switchTab('home')">
+            <div class="nav-icon">🏠</div>
+            <span>主要</span>
+        </div>
+        <div class="nav-item" onclick="switchTab('transactions')">
+            <div class="nav-icon">📝</div>
+            <span>交易</span>
+        </div>
+        <div class="nav-item" onclick="switchTab('statistics')">
+            <div class="nav-icon">📊</div>
+            <span>统计</span>
+        </div>
+    </div>
+
+    <!-- 添加交易模态框 -->
+    <div id="add-modal" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-bottom: 20px; text-align: center;">记一笔</h3>
+            <div class="form-group">
+                <label>消费名称</label>
+                <input type="text" id="input-name" placeholder="例如：外卖、打车、工资">
+            </div>
+            <div class="form-group">
+                <label>金额 (元)</label>
+                <input type="number" id="input-amount" placeholder="0.00">
+            </div>
+            <div class="form-group">
+                <label>分类</label>
+                <select id="input-category">
+                    <option value="饮食">饮食</option>
+                    <option value="交通">交通</option>
+                    <option value="娱乐">娱乐</option>
+                    <option value="生活用品">生活用品</option>
+                    <option value="偶然支出">偶然支出</option>
+                </select>
+            </div>
+            <div class="modal-btns">
+                <button class="btn btn-cancel" onclick="closeModal()">取消</button>
+                <button class="btn btn-confirm" onclick="addTransaction()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 模拟全局数据
+    let transactions = [
+        { id: 1, date: '2026-10-17', name: '外卖', category: '饮食', amount: 27.00, note: '食堂11 淘宝13 烤肠3' },
+        { id: 2, date: '2026-10-16', name: '打印费', category: '偶然支出', amount: 1.00, note: '打印' },
+        { id: 3, date: '2026-10-16', name: '外卖', category: '饮食', amount: 28.00, note: '食堂22 水果6' },
+        { id: 4, date: '2026-10-15', name: '车费', category: '交通', amount: 8.00, note: '共享单车' },
+        { id: 5, date: '2026-10-15', name: '零食', category: '饮食', amount: 18.00, note: '零食店' },
+        { id: 6, date: '2026-10-14', name: '外卖', category: '饮食', amount: 22.00, note: '食堂' },
+    ];
+
+    let currentBalance = 2567.50;
+
+    // 切换 Tab 逻辑
+    function switchTab(tabId) {
+        // 隐藏所有内容
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.top-nav-item').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        
+        // 显示选中内容
+        document.getElementById(`tab-${tabId}`).classList.add('active');
+        
+        // 更新导航高亮
+        if(tabId === 'home') {
+            document.querySelector('.top-nav-item:nth-child(1)').classList.add('active');
+            document.querySelector('.bottom-nav .nav-item:nth-child(1)').classList.add('active');
+        } else if(tabId === 'transactions') {
+            document.querySelector('.top-nav-item:nth-child(2)').classList.add('active');
+            document.querySelector('.bottom-nav .nav-item:nth-child(2)').classList.add('active');
+            renderTransactions(); // 切换时重新渲染列表
+        } else if(tabId === 'statistics') {
+            document.querySelector('.top-nav-item:nth-child(3)').classList.add('active');
+            document.querySelector('.bottom-nav .nav-item:nth-child(3)').classList.add('active');
+        }
+    }
+
+    // 渲染交易列表
+    function renderTransactions() {
+        const listContainer = document.getElementById('transaction-list');
+        listContainer.innerHTML = '';
+
+        // 按日期分组
+        const grouped = transactions.reduce((acc, curr) => {
+            if (!acc[curr.date]) acc[curr.date] = [];
+            acc[curr.date].push(curr);
+            return acc;
+        }, {});
+
+        // 倒序排列日期
+        const sortedDates = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
+
+        sortedDates.forEach(date => {
+            const dayData = grouped[date];
+            // 计算当日总支出
+            const dailyTotal = dayData.reduce((sum, item) => sum + item.amount, 0);
+            
+            // 格式化日期
+            const d = new Date(date);
+            const dayOfWeek = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()];
+            
+            let groupHTML = `
+                <div class="date-group">
+                    <div class="date-header">
+                        <span>${dayOfWeek} ${date.replace(/-/g, '年').replace(/年/, '年').replace(/-/, '月')}日</span>
+                        <span>-¥${dailyTotal.toFixed(2)}</span>
+                    </div>
+            `;
+
+            dayData.forEach(item => {
+                groupHTML += `
+                    <div class="transaction-item">
+                        <div class="item-left">
+                            <div class="item-icon">🛒</div>
+                            <div class="item-info">
+                                <p>${item.name}</p>
+                                <p>${item.category} · ${item.note || '无备注'}</p>
+                            </div>
+                        </div>
+                        <div class="item-right">
+                            <div class="item-amount">-¥${item.amount.toFixed(2)}</div>
+                            <div class="item-balance">钱包 ¥${currentBalance.toFixed(2)}</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            groupHTML += `</div>`;
+            listContainer.innerHTML += groupHTML;
+        });
+    }
+
+    // 模态框逻辑
+    function openModal() {
+        document.getElementById('add-modal').classList.add('active');
+    }
+
+    function closeModal() {
+        document.getElementById('add-modal').classList.remove('active');
+        document.getElementById('input-name').value = '';
+        document.getElementById('input-amount').value = '';
+    }
+
+    // 添加交易
+    function addTransaction() {
+        const name = document.getElementById('input-name').value;
+        const amount = parseFloat(document.getElementById('input-amount').value);
+        const category = document.getElementById('input-category').value;
+
+        if (!name || isNaN(amount) || amount <= 0) {
+            alert('请填写有效的名称和金额！');
+            return;
+        }
+
+        // 获取当前日期 (模拟为2026-10-17)
+        const today = '2026-10-17';
+
+        const newTransaction = {
+            id: Date.now(),
+            date: today,
+            name: name,
+            category: category,
+            amount: amount,
+            note: '刚刚记录'
+        };
+
+        // 加入数据并更新余额
+        transactions.unshift(newTransaction);
+        currentBalance -= amount;
+        document.getElementById('display-total-balance').innerText = currentBalance.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+        closeModal();
+        
+        // 如果在交易页面则刷新列表，并切换到交易页面查看
+        renderTransactions();
+        switchTab('transactions');
+    }
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+        renderTransactions();
+    });
+
+</script>
+</body>
+</html>
